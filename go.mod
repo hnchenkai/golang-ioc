@@ -1,4 +1,4 @@
-module git.nas.moxigame.top/code-source-public/golang/ioc.git
+module github.com/hnchenkai/golang-ioc
 
 go 1.18
 
