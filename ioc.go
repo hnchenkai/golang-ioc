@@ -42,37 +42,63 @@ func (c *Component) New(...interface{}) error {
 func (c *Component) GracefulStop() {
 }
 
-func createComponent(opt *RegistOptions, typeName string) *subComponent {
+func createComponent(opt *RegistOptions, typeName string, bindM reflect.Type) {
+	newUnit := &subComponent{
+		typeName:  bindM.Name(),
+		pkgName:   *opt.PkgName,
+		opt:       opt,
+		typeClass: bindM,
+	}
+	// 找主节点
 	p := beanComponentMgr.findComponent(opt.PkgName, &typeName)
 	if p == nil {
-		return &subComponent{
-			typeName: typeName,
-			pkgName:  *opt.PkgName,
-			opt:      opt,
+		p = &subComponent{
+			typeName:  typeName,
+			pkgName:   *opt.PkgName,
+			opt:       opt,
+			typeClass: bindM,
 		}
+
+		p.pushSubComponent(newUnit)
+		beanComponentMgr.beanComps = append(beanComponentMgr.beanComps, p)
+		return
 	}
+
+	p.pushSubComponent(newUnit)
 
 	// p 没有order opt也没有那么就异常
 	if opt.Order == nil && p.opt.Order == nil {
 		//都没有那么就提示异常
-		panic(fmt.Sprintf("Component typename[%s:%s] is repeat, maybe need Order!=nil", *opt.PkgName, typeName))
+		logrus.Warnf("Component typename[%s:%s] is repeat, maybe need Order!=nil\n", *opt.PkgName, typeName)
 	} else if opt.Order == nil {
 		// 有人有了那么就不要注册了
-		return nil
+		return
 	} else if p.opt.Order == nil {
 		// 新的有,老的没有,那么就替换
 		p.opt = opt
 	} else if *opt.Order > *p.opt.Order {
 		// 新的比老的数字高,那么就不替换
-		return nil
+		return
 	} else if *opt.Order == *p.opt.Order {
 		// 新的比老的数字一样,那么就提示异常
-		panic(fmt.Sprintf("Component typename[%s:%s] is repeat, Order now is equal", *opt.PkgName, typeName))
+		logrus.Warnf("Component typename[%s:%s] is repeat, Order now is equal\n", *opt.PkgName, typeName)
 	} else {
 		// 新的比老的数字低,那么就替换
 		p.opt = opt
 	}
-	return p
+	p.typeClass = bindM
+}
+
+// 获取所有类型的组件名称
+func GetCompmentTypes[T any]() []string {
+	opt := GetOptions{}
+	opt.Fill(reflect.TypeOf((*T)(nil)).Elem())
+	comp := beanComponentMgr.findComponent(opt.PkgName, opt.TypeName)
+	var out []string
+	for _, v := range comp.pool {
+		out = append(out, v.typeName)
+	}
+	return out
 }
 
 // 接口类的实现类注册 T 只能是 Interface T2 需要满足[ioc.Component]的要求
@@ -88,21 +114,15 @@ func Bind[T any, T2 beanComponent](options ...*RegistOptions) {
 	if opt.PkgName == nil {
 		opt.PkgName = toString(typeM.PkgPath())
 	}
-	unit := createComponent(opt, typeName)
-	if unit == nil {
-		return
-	}
 
 	// 实际数据要找到结构体的指针类型
 	bindM := reflect.TypeOf((*T2)(nil)).Elem()
 	// 需要检查是否满足 T的接口实现要求
 	isContains(typeM, bindM)
 
+	createComponent(opt, typeName, bindM.Elem())
 	logrus.Infof("Component typename[%s:%s] is Bind", *opt.PkgName, typeName)
 
-	unit.typeClass = bindM.Elem()
-
-	beanComponentMgr.beanComps = append(beanComponentMgr.beanComps, unit)
 }
 
 // 注册组件 T 用 *struct 的形式注入 需要满足[ioc.Component]的要求
@@ -116,26 +136,36 @@ func Regist[T beanComponent](options ...*RegistOptions) {
 	if opt.PkgName == nil {
 		opt.PkgName = toString(typeM.PkgPath())
 	}
-	unit := createComponent(opt, typeName)
-	if unit == nil {
-		return
-	}
-	unit.typeClass = typeM
 
+	createComponent(opt, typeName, typeM)
 	logrus.Infof("Component typename[%s:%s] is registed", *opt.PkgName, typeName)
-	beanComponentMgr.beanComps = append(beanComponentMgr.beanComps, unit)
+}
+
+// 查询一个组件 如果不存在就直接返回nil 有名字就按照名字找,没有名字按照类型找
+func GetBean[T any](beanName ...string) any {
+	if beanName != nil {
+		if bean := beanComponentMgr.loadBean(beanName[0]); bean != nil {
+			return bean
+		}
+	}
+
+	opt := GetOptions{}
+	opt.Fill(reflect.TypeOf((*T)(nil)))
+	if result := beanComponentMgr.toNewBean(&opt); result != nil {
+		return result
+	}
+	return nil
 }
 
 // 按照类型T获取一个bean
 func GetInterface[T any](options ...*GetOptions) T {
 	opt := parseOptions(options...)
+	opt.Fill(reflect.TypeOf((*T)(nil)).Elem())
 	if opt.BeanName != nil {
 		if bean := beanComponentMgr.loadBean(*opt.BeanName); bean != nil {
 			return bean.(T)
 		}
 	}
-
-	opt.Fill(reflect.TypeOf(*new(T)))
 	if result := beanComponentMgr.toNewBean(opt); result != nil {
 		return result.(T)
 	}
@@ -174,6 +204,16 @@ var c = make(chan os.Signal, 1)
 
 func Exit(code int) {
 	c <- syscall.SIGINT
+}
+
+// 捕获panic异常防止程序崩溃,启用单独协程的时候使用
+func PanicPrint(run func()) {
+	defer func() {
+		if err := recover(); err != nil {
+			logrus.Errorln(err)
+		}
+	}()
+	run()
 }
 
 func Run[T any]() {

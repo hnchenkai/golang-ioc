@@ -26,6 +26,21 @@ type subComponent struct {
 	pkgName   string
 	typeClass reflect.Type
 	opt       *RegistOptions
+	// 	这里对之前注册的都存放一下,主要是给后续指定模式使用
+	pool []*subComponent
+}
+
+func (sc *subComponent) pushSubComponent(sub *subComponent) {
+	sc.pool = append(sc.pool, sub)
+}
+
+func (sc *subComponent) findSubComponent(typename string) *subComponent {
+	for _, v := range sc.pool {
+		if v.typeName == typename {
+			return v
+		}
+	}
+	return nil
 }
 
 func (c *_BeanComponentMgr) stroeBean(beanName string, bean interface{}, opt *GetOptions) bool {
@@ -72,6 +87,13 @@ func (c *_BeanComponentMgr) toNewBean(opt *GetOptions) interface{} {
 	if bean == nil {
 		return nil
 	}
+	if opt.RealTypeName != nil {
+		// 如果指定了资源名字,那么就需要去找特定的
+		if bean = bean.findSubComponent(*opt.RealTypeName); bean == nil {
+			return nil
+		}
+	}
+
 	return bean.toNew(opt, &beanComponentMgr)
 }
 

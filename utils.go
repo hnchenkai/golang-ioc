@@ -27,8 +27,25 @@ func (s *StrList) Append(e string) {
 
 func newStrList(a reflect.Type) StrList {
 	baseMethods := StrList{}
+	isPtr := a.Kind() == reflect.Ptr
 	for i := 0; i < a.NumMethod(); i++ {
-		baseMethods.Append(a.Method(i).Name)
+		method := a.Method(i)
+		argList := []string{}
+		if isPtr {
+			for j := 1; j < method.Type.NumIn(); j++ {
+				argList = append(argList, method.Type.In(j).String())
+			}
+		} else {
+			for j := 0; j < method.Type.NumIn(); j++ {
+				argList = append(argList, method.Type.In(j).String())
+			}
+		}
+		outList := []string{}
+
+		for j := 0; j < method.Type.NumOut(); j++ {
+			outList = append(outList, method.Type.Out(j).String())
+		}
+		baseMethods.Append(fmt.Sprintf("%s(%s)(%s)", method.Name, strings.Join(argList, ","), strings.Join(outList, ",")))
 	}
 	return baseMethods
 }

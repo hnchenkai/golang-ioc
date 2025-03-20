@@ -8,9 +8,15 @@ type GetOptions struct {
 	Lazy *bool
 	Args []interface{}
 
+	// BeanName
 	BeanName *string
-	PkgName  *string
+	// 包名
+	PkgName *string
+	// 泛型或者声明类的名字
 	TypeName *string
+
+	// 实现类的名字
+	RealTypeName *string
 }
 
 func (opt *GetOptions) Fill(typeM reflect.Type) {
@@ -22,6 +28,9 @@ func (opt *GetOptions) Fill(typeM reflect.Type) {
 	}
 	if opt.BeanName == nil {
 		opt.BeanName = toString(*opt.PkgName + ":" + *opt.TypeName)
+	}
+	if opt.RealTypeName != nil {
+		opt.BeanName = toString(*opt.PkgName + ":" + *opt.TypeName + ":" + *opt.RealTypeName)
 	}
 }
 
@@ -47,13 +56,8 @@ func (c *GetOptions) WithBeanName(name string) *GetOptions {
 	return c
 }
 
-func (c *GetOptions) WithPkgName(name string) *GetOptions {
-	c.PkgName = &name
-	return c
-}
-
 func (c *GetOptions) WithTypeName(name string) *GetOptions {
-	c.TypeName = &name
+	c.RealTypeName = &name
 	return c
 }
 
