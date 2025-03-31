@@ -69,7 +69,7 @@ func createComponent(bindMode bool, opt *RegistOptions, typeName string, bindM r
 	// p 没有order opt也没有那么就异常
 	if opt.Order == nil && p.opt.Order == nil {
 		//都没有那么就提示异常
-		if bindMode {
+		if !bindMode {
 			logrus.Warnf("Component typename[%s:%s] is repeat, maybe need Order!=nil\n", *opt.PkgName, typeName)
 		}
 	} else if opt.Order == nil {
