@@ -42,7 +42,7 @@ func (c *Component) New(...interface{}) error {
 func (c *Component) GracefulStop() {
 }
 
-func createComponent(opt *RegistOptions, typeName string, bindM reflect.Type) {
+func createComponent(bindMode bool, opt *RegistOptions, typeName string, bindM reflect.Type) {
 	newUnit := &subComponent{
 		typeName:  bindM.Name(),
 		pkgName:   *opt.PkgName,
@@ -69,7 +69,9 @@ func createComponent(opt *RegistOptions, typeName string, bindM reflect.Type) {
 	// p 没有order opt也没有那么就异常
 	if opt.Order == nil && p.opt.Order == nil {
 		//都没有那么就提示异常
-		logrus.Warnf("Component typename[%s:%s] is repeat, maybe need Order!=nil\n", *opt.PkgName, typeName)
+		if bindMode {
+			logrus.Warnf("Component typename[%s:%s] is repeat, maybe need Order!=nil\n", *opt.PkgName, typeName)
+		}
 	} else if opt.Order == nil {
 		// 有人有了那么就不要注册了
 		return
@@ -120,7 +122,7 @@ func Bind[T any, T2 beanComponent](options ...*RegistOptions) {
 	// 需要检查是否满足 T的接口实现要求
 	isContains(typeM, bindM)
 
-	createComponent(opt, typeName, bindM.Elem())
+	createComponent(true, opt, typeName, bindM.Elem())
 	logrus.Infof("Component typename[%s:%s] realtype[%s] is Bind", *opt.PkgName, typeName, bindM.Elem().Name())
 
 }
@@ -137,7 +139,7 @@ func Regist[T beanComponent](options ...*RegistOptions) {
 		opt.PkgName = toString(typeM.PkgPath())
 	}
 
-	createComponent(opt, typeName, typeM)
+	createComponent(false, opt, typeName, typeM)
 	logrus.Infof("Component typename[%s:%s] is registed", *opt.PkgName, typeName)
 }
 
