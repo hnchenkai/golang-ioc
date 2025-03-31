@@ -1,6 +1,9 @@
 package ioc
 
-import "reflect"
+import (
+	"reflect"
+	"strings"
+)
 
 type GetOptions struct {
 	parentBean string
@@ -19,18 +22,76 @@ type GetOptions struct {
 	RealTypeName *string
 }
 
-func (opt *GetOptions) Fill(typeM reflect.Type) {
-	if opt.TypeName == nil {
-		opt.TypeName = toString(typeM.Name())
+// 标签格式 "ioc:[beanName],[lazy],[type=xxx],[bean=xxx],[pkg=xxx]"
+func NewGetOption(iocTag string) *GetOptions {
+	// 这里提取ioc后面的东西
+	iocTag = strings.TrimPrefix(iocTag, "ioc:")
+	opt := GetOptions{}
+	opt.parseTag(iocTag)
+	return &opt
+}
+
+// 解析 ioc 标签
+// 标签格式 "ioc:beanName,lazy,type=,bean=,pkg="
+func (opt *GetOptions) parseTag(iocTag string) {
+	iocTagList := strings.Split(iocTag, ",")
+	for _, v := range iocTagList {
+		if strings.HasPrefix(v, "lazy") {
+			opt.Lazy = toPtr(true)
+		} else if strings.HasPrefix(v, "pkg=") {
+			opt.PkgName = toPtr(strings.TrimPrefix(v, "pkg="))
+		} else if strings.HasPrefix(v, "bean=") {
+			opt.BeanName = toPtr(strings.TrimPrefix(v, "bean="))
+		} else if strings.HasPrefix(v, "type=") {
+			opt.RealTypeName = toPtr(strings.TrimPrefix(v, "type="))
+		} else if len(v) > 0 {
+			opt.BeanName = toPtr(v)
+		}
 	}
-	if opt.PkgName == nil {
-		opt.PkgName = toString(typeM.PkgPath())
+}
+
+func nilSet[T any](ptr **T, val T) {
+	if ptr == nil {
+		return
 	}
+
+	if *ptr == nil {
+		*ptr = &val
+	}
+}
+
+func (opt *GetOptions) parse(unitK reflect.StructField) bool {
+	opt.parseTag(unitK.Tag.Get("ioc"))
+	if unitK.Type.Kind() == reflect.Interface {
+		// 表示是一个接口类,需要按照名字去找
+		nilSet(&opt.PkgName, unitK.Type.PkgPath())
+		nilSet(&opt.TypeName, unitK.Type.Name())
+	} else {
+		if _, ok := unitK.Type.MethodByName("New"); !ok {
+			return false
+		}
+
+		nilSet(&opt.PkgName, unitK.Type.Elem().PkgPath())
+		nilSet(&opt.TypeName, unitK.Type.Elem().Name())
+	}
+
 	if opt.BeanName == nil {
-		opt.BeanName = toString(*opt.PkgName + ":" + *opt.TypeName)
+		if DefaultBeanMode == Singleton {
+			opt.BeanName = toPtr(*opt.PkgName + ":" + *opt.TypeName)
+		} else {
+			opt.BeanName = &unitK.Name
+		}
 	}
+	return true
+}
+
+func (opt *GetOptions) Fill(typeM reflect.Type) {
+	nilSet(&opt.TypeName, typeM.Name())
+	nilSet(&opt.PkgName, typeM.PkgPath())
+
+	nilSet(&opt.BeanName, *opt.PkgName+":"+*opt.TypeName)
 	if opt.RealTypeName != nil {
-		opt.BeanName = toString(*opt.PkgName + ":" + *opt.TypeName + ":" + *opt.RealTypeName)
+		opt.BeanName = toPtr(*opt.PkgName + ":" + *opt.TypeName + ":" + *opt.RealTypeName)
 	}
 }
 

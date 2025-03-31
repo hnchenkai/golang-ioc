@@ -10,6 +10,10 @@ func toString(v string) *string {
 	return &v
 }
 
+func toPtr[T any](v T) *T {
+	return &v
+}
+
 type StrList []string
 
 func (s *StrList) contains(e string) bool {

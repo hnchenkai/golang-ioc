@@ -121,7 +121,7 @@ func Bind[T any, T2 beanComponent](options ...*RegistOptions) {
 	isContains(typeM, bindM)
 
 	createComponent(opt, typeName, bindM.Elem())
-	logrus.Infof("Component typename[%s:%s] is Bind", *opt.PkgName, typeName)
+	logrus.Infof("Component typename[%s:%s] realtype[%s] is Bind", *opt.PkgName, typeName, bindM.Elem().Name())
 
 }
 
@@ -169,8 +169,9 @@ func GetInterface[T any](options ...*GetOptions) T {
 	if result := beanComponentMgr.toNewBean(opt); result != nil {
 		return result.(T)
 	}
-
-	panic(fmt.Sprintf("component typeName [%s] not found", *opt.TypeName))
+	logrus.Warnf("component typeName [%s] not found", *opt.TypeName)
+	var nilRes T
+	return nilRes
 }
 
 // 按照类型T获取一个bean 返回的是原始类型 *T
@@ -186,7 +187,8 @@ func Get[T any](options ...*GetOptions) (beanOut *T) {
 		return result.(*T)
 	}
 
-	panic(fmt.Sprintf("component typeName [%s] not found", *opt.TypeName))
+	logrus.Warnf("component typeName [%s] not found", *opt.TypeName)
+	return nil
 }
 
 // 这里优雅的关闭所有模块

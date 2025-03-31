@@ -117,21 +117,12 @@ func (bean *beanInstance) callInit(opt *GetOptions, mgr *_BeanComponentMgr) {
 		unitV := vt.Field(i)
 		unitK := kt.Field(i)
 		// 不是合格的组件的Pass 组建都是指针类型的
-
 		opt := &GetOptions{
 			parentBean: bean.beanName,
 		}
 
-		if unitK.Type.Kind() == reflect.Interface {
-			// 表示是一个接口类,需要按照名字去找
-			opt.PkgName = toString(unitK.Type.PkgPath())
-			opt.TypeName = toString(unitK.Type.Name())
-		} else {
-			if _, ok := unitK.Type.MethodByName("New"); !ok {
-				continue
-			}
-			opt.PkgName = toString(unitK.Type.Elem().PkgPath())
-			opt.TypeName = toString(unitK.Type.Elem().Name())
+		if !opt.parse(unitK) {
+			continue
 		}
 
 		// 不能反射的pass
@@ -139,15 +130,6 @@ func (bean *beanInstance) callInit(opt *GetOptions, mgr *_BeanComponentMgr) {
 			logrus.Fatalf("ioc error, [%s] field [%s] is not reflectable", kt.Name(), unitK.Name)
 		}
 
-		if beanName := unitK.Tag.Get("ioc"); len(beanName) != 0 {
-			opt.BeanName = &beanName
-		} else {
-			if DefaultBeanMode == Singleton {
-				opt.BeanName = toString(*opt.PkgName + ":" + *opt.TypeName)
-			} else {
-				opt.BeanName = &unitK.Name
-			}
-		}
 		nB := mgr.loadBean(*opt.BeanName)
 		if nB == nil {
 			nB = mgr.toNewBean(opt)
