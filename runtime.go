@@ -119,6 +119,7 @@ func (bean *beanInstance) callInit(opt *GetOptions, mgr *_BeanComponentMgr) {
 		// 不是合格的组件的Pass 组建都是指针类型的
 		opt := &GetOptions{
 			parentBean: bean.beanName,
+			Args:       opt.Args,
 		}
 
 		if !opt.parse(unitK) {
